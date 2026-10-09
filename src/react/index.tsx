@@ -1,15 +1,21 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactElement, type ReactNode } from 'react';
 import { z } from 'zod';
-import { FieldValueSchema, type UserContext } from '@almadar/core';
+import { FieldValueSchema, type UserContext, type ViewerAuthority } from '@almadar/core';
 import type { BrowserAuth, SignedInUser } from '../browser/index.js';
 
 export type { BrowserAuth, SignedInUser } from '../browser/index.js';
+
+/** The provider's resolved viewer authority — `@almadar/core`'s {@link ViewerAuthority}. */
+export type AuthAuthority = ViewerAuthority;
 
 export interface AuthContextValue {
   /** The sign-in surface, or null when the app has no auth configured. */
   auth: BrowserAuth | null;
   user: SignedInUser | null;
+  authority: AuthAuthority;
+  /** An interactive auth action (or the initial connect) is in flight. */
   loading: boolean;
+  /** The last interactive action's failure; a valid session survives it. */
   error: string | null;
   clearError(): void;
   signInWithGoogle(): Promise<void>;
@@ -35,6 +41,7 @@ export interface AuthProviderProps {
 export function AuthProvider({ connect, children }: AuthProviderProps): ReactElement {
   const [auth, setAuth] = useState<BrowserAuth | null>(null);
   const [user, setUser] = useState<SignedInUser | null>(null);
+  const [authority, setAuthority] = useState<AuthAuthority>('pending');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,16 +53,27 @@ export function AuthProvider({ connect, children }: AuthProviderProps): ReactEle
         if (cancelled) return;
         setAuth(connected);
         if (connected === null) {
+          setAuthority('unavailable');
           setLoading(false);
           return;
         }
-        unsubscribe = connected.onUserChanged((next) => {
-          setUser(next);
-          setLoading(false);
-        });
+        unsubscribe = connected.onUserChanged(
+          (next) => {
+            setUser(next);
+            setAuthority(next === null ? 'anonymous' : 'authenticated');
+            setLoading(false);
+          },
+          (err) => {
+            setUser(null);
+            setAuthority('failed');
+            setError(err.message);
+            setLoading(false);
+          },
+        );
       })
       .catch((err: Error) => {
         if (cancelled) return;
+        setAuthority('failed');
         setError(err.message);
         setLoading(false);
       });
@@ -84,6 +102,7 @@ export function AuthProvider({ connect, children }: AuthProviderProps): ReactEle
   const value = useMemo<AuthContextValue>(() => ({
     auth,
     user,
+    authority,
     loading,
     error,
     clearError: () => setError(null),
@@ -95,9 +114,14 @@ export function AuthProvider({ connect, children }: AuthProviderProps): ReactEle
     signInWithEmailLink: (email, link) => run((a) => a.signInWithEmailLink(email, link)),
     signInWithCustomToken: (customToken) => run((a) => a.signInWithCustomToken(customToken)),
     signOut: () => run((a) => a.signOut()),
-  }), [auth, user, loading, error, run]);
+  }), [auth, user, authority, loading, error, run]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+/** The provider's value, or undefined outside an AuthProvider (an app with no sign-in surface). */
+export function useOptionalAuth(): AuthContextValue | undefined {
+  return useContext(AuthContext);
 }
 
 export function useAuth(): AuthContextValue {

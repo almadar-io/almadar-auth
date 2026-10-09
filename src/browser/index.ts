@@ -48,6 +48,7 @@ export interface SignedInUser {
 /** One sign-in surface: who is signed in, the ways to sign in, and the ID token every request carries. */
 export interface BrowserAuth {
   readonly auth: Auth;
+  currentUid(): Promise<string | null>;
   signInWithCustomToken(customToken: string): Promise<SignedInUser>;
   signInWithEmail(email: string, password: string): Promise<SignedInUser>;
   signUpWithEmail(email: string, password: string, displayName?: string): Promise<SignedInUser>;
@@ -57,7 +58,8 @@ export interface BrowserAuth {
   signInWithEmailLink(email: string, link: string): Promise<SignedInUser>;
   /** The current user's ID token (refreshed when near expiry), or undefined when signed out. */
   idToken(): Promise<string | undefined>;
-  onUserChanged(listener: (user: SignedInUser | null) => void): () => void;
+  /** Each change of the signed-in user. `onError` receives a failure to resolve a user's claims. */
+  onUserChanged(listener: (user: SignedInUser | null) => void, onError?: (error: Error) => void): () => void;
   signOut(): Promise<void>;
 }
 
@@ -91,6 +93,10 @@ export async function connectAuth(config: BrowserAuthConfig): Promise<BrowserAut
   await setPersistence(auth, config.persistence === 'memory' ? inMemoryPersistence : browserLocalPersistence);
   return {
     auth,
+    async currentUid() {
+      await auth.authStateReady();
+      return auth.currentUser?.uid ?? null;
+    },
     async signInWithCustomToken(customToken) {
       return signedIn((await signInWithCustomToken(auth, customToken)).user);
     },
@@ -117,11 +123,27 @@ export async function connectAuth(config: BrowserAuthConfig): Promise<BrowserAut
     async idToken() {
       return auth.currentUser ? auth.currentUser.getIdToken() : undefined;
     },
-    onUserChanged(listener) {
-      return onIdTokenChanged(auth, (user) => {
+    onUserChanged(listener, onError) {
+      // Each change supersedes every earlier one: a claims result that resolves
+      // after a newer change (or after unsubscribing) is dropped.
+      let generation = 0;
+      const stop = onIdTokenChanged(auth, (user) => {
+        const current = ++generation;
         if (user === null) listener(null);
-        else void signedIn(user).then(listener);
+        else
+          void signedIn(user).then(
+            (resolved) => {
+              if (current === generation) listener(resolved);
+            },
+            (err: unknown) => {
+              if (current === generation) onError?.(err instanceof Error ? err : new Error(String(err)));
+            },
+          );
       });
+      return () => {
+        generation++;
+        stop();
+      };
     },
     async signOut() {
       await signOut(auth);
