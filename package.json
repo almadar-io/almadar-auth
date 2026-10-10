@@ -1,6 +1,6 @@
 {
   "name": "@almadar/auth",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "App-user identity for Almadar apps: token verification (Firebase / Identity Platform, generic OIDC), verified user to @user resolution, dev personas as emulated users, and the one OIDC client.",
   "type": "module",
   "main": "./dist/index.js",
@@ -46,8 +46,8 @@
     "prepare": "git config core.hooksPath .githooks"
   },
   "dependencies": {
-    "@almadar/core": "^10.120.0",
-    "@almadar/db": "^0.1.1",
+    "@almadar/core": "^10.122.0",
+    "@almadar/db": "^0.1.2",
     "@almadar/logger": "^1.17.0",
     "firebase": "^11.1.0",
     "firebase-admin": "^14.2.0",

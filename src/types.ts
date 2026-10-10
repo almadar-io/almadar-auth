@@ -2,10 +2,13 @@ import type { JsonObject } from '@almadar/core';
 
 export type AuthProviderKind = 'firebase' | 'oidc';
 
+/** Who vouched for a verified bearer: the app's sign-in provider, or one of its API keys. */
+export type VerifiedProviderKind = AuthProviderKind | 'apikey';
+
 /** A token the configured provider has verified. Claims are the token's own payload. */
 export interface VerifiedUser {
   uid: string;
-  provider: AuthProviderKind;
+  provider: VerifiedProviderKind;
   email?: string;
   name?: string;
   tenant?: string;
@@ -17,7 +20,7 @@ export type AuthOutcome =
   | { ok: false; status: 401; error: string };
 
 export interface TokenVerifier {
-  readonly provider: AuthProviderKind;
+  readonly provider: VerifiedProviderKind;
   /** `tenant` null = the app has no tenant; a tenant-scoped token is refused. */
   verify(token: string, tenant: string | null): Promise<VerifiedUser>;
 }

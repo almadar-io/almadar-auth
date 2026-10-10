@@ -1,6 +1,8 @@
 export { authenticateBearer } from './authenticate.js';
 export { firebaseVerifier } from './firebase.js';
 export { oidcVerifier } from './oidc.js';
+export { API_KEY_PREFIX, apiKeyVerifier, hashApiKey, mintApiKey, withApiKeys } from './api-key.js';
+export type { ApiKeyRecord, ApiKeyVerifierConfig, MintedApiKey } from './api-key.js';
 export type { OidcVerifierConfig } from './oidc.js';
 export { authEnvProblems, verifierFromEnv } from './env.js';
 export type { AuthEnv } from './env.js';
